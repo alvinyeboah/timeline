@@ -76,16 +76,26 @@ export default function SplashPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.2 }}
-          className="text-[#9CA3AF] text-sm mb-12"
+          className="text-[#9CA3AF] text-sm mb-4"
         >
           across {ACCOUNTS.length} connected accounts
+        </motion.p>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.4 }}
+          className="text-white/60 text-base mb-10 leading-snug"
+        >
+          Build the life you want.{' '}
+          <span className="text-[#00C896]">See what it takes.</span>
         </motion.p>
 
         {/* CTAs */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.4 }}
+          transition={{ delay: 1.6 }}
           className="flex flex-col gap-3"
         >
           <button
