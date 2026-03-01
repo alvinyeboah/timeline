@@ -12,7 +12,12 @@ export default function SplashPage() {
   const firstName = useProfileStore((s) => s.profile.fullName.split(' ')[0]);
   const [showStats, setShowStats] = useState(false);
   const [displayedAmount, setDisplayedAmount] = useState(0);
+  const [returning, setReturning] = useState(false);
   const targetAmount = NET_WORTH;
+
+  useEffect(() => {
+    setReturning(!!localStorage.getItem('timeline_tutorial_seen'));
+  }, []);
 
   // Count-up animation
   useEffect(() => {
@@ -49,7 +54,7 @@ export default function SplashPage() {
           transition={{ delay: 0.2 }}
           className="text-[#9CA3AF] text-sm font-medium tracking-widest uppercase mb-2"
         >
-          Welcome back
+          {returning ? 'Welcome back' : 'Welcome'}
         </motion.p>
 
         <motion.h1
@@ -101,17 +106,19 @@ export default function SplashPage() {
           className="flex flex-col gap-3"
         >
           <button
-            onClick={() => router.push('/onboarding')}
+            onClick={() => router.push(returning ? '/timeline' : '/onboarding')}
             className="w-full py-4 bg-[#00C896] text-[#0D0D0D] font-semibold rounded-2xl text-base hover:bg-[#00B386] active:scale-[0.98] transition-all"
           >
-            Continue to your Timeline →
+            {returning ? 'Continue to your Timeline →' : 'Get Started →'}
           </button>
-          <button
-            onClick={() => setShowStats(true)}
-            className="w-full py-4 bg-[#1A1A1A] text-white font-semibold rounded-2xl text-base border border-[#2A2A2A] hover:bg-[#242424] active:scale-[0.98] transition-all"
-          >
-            Quick Stats
-          </button>
+          {returning && (
+            <button
+              onClick={() => setShowStats(true)}
+              className="w-full py-4 bg-[#1A1A1A] text-white font-semibold rounded-2xl text-base border border-[#2A2A2A] hover:bg-[#242424] active:scale-[0.98] transition-all"
+            >
+              Quick Stats
+            </button>
+          )}
         </motion.div>
       </motion.div>
 
