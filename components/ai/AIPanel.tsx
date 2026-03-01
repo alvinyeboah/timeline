@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Goal } from '@/lib/types';
-import { getGoals } from '@/lib/goals-storage';
+import { useGoalsStore } from '@/store/goals';
 import { SARAH } from '@/lib/mock-data';
 import { GOAL_ICONS, XIcon } from '@/components/ui/icons';
 
@@ -13,6 +13,7 @@ interface Props {
 }
 
 export default function AIPanel({ goal, onClose }: Props) {
+  const allGoals = useGoalsStore((s) => s.goals);
   const [streamedText, setStreamedText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -35,8 +36,6 @@ export default function AIPanel({ goal, onClose }: Props) {
 
     setStreamedText('');
     setIsStreaming(true);
-
-    const allGoals = getGoals();
 
     fetch('/api/explain-impact', {
       method: 'POST',
