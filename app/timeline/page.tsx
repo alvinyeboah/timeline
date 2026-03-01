@@ -5,9 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Goal, ProjectionPoint } from '@/lib/types';
 import { ACCOUNTS, SARAH, NET_WORTH } from '@/lib/mock-data';
-import { getGoals, updateGoalYear, deleteGoal } from '@/lib/goals-storage';
-import { getProfile } from '@/lib/profile-storage';
 import { generateProjection } from '@/lib/projections';
+import { useGoalsStore } from '@/store/goals';
+import { useProfileStore } from '@/store/profile';
 import TimelineCanvas from '@/components/timeline/TimelineCanvas';
 import AIPanel from '@/components/ai/AIPanel';
 import NetWorthDisplay from '@/components/ui/NetWorthDisplay';
@@ -15,24 +15,34 @@ import GoalInput from '@/components/ai/GoalInput';
 
 export default function TimelinePage() {
   const router = useRouter();
-  const [goals, setGoals] = useState<Goal[]>([]);
+
+  const goals = useGoalsStore((s) => s.goals);
+  const updateGoalYear = useGoalsStore((s) => s.updateGoalYear);
+  const deleteGoal = useGoalsStore((s) => s.deleteGoal);
+
+  const profile = useProfileStore((s) => s.profile);
+
   const [projection, setProjection] = useState<ProjectionPoint[]>([]);
   const [activeGoal, setActiveGoal] = useState<Goal | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
 
-  // Load goals and compute initial projection
+  // Recalculate projection whenever goals change
   useEffect(() => {
-    const stored = getGoals();
-    setGoals(stored);
-    setProjection(generateProjection(SARAH, ACCOUNTS, stored));
-    if (stored.length > 0) setActiveGoal(stored[stored.length - 1]);
+    setProjection(generateProjection(SARAH, ACCOUNTS, goals));
+  }, [goals]);
 
-    // Show welcome screen on first visit
+  // Show welcome screen on first visit
+  useEffect(() => {
     const seen = localStorage.getItem('timeline_welcome_seen');
     if (!seen) setShowWelcome(true);
+  }, []);
 
-    setLoaded(true);
+  // Auto-select most recent goal when goals load
+  useEffect(() => {
+    if (goals.length > 0 && !activeGoal) {
+      setActiveGoal(goals[goals.length - 1]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dismissWelcome = () => {
@@ -40,32 +50,16 @@ export default function TimelinePage() {
     setShowWelcome(false);
   };
 
-  const recalculate = useCallback((updatedGoals: Goal[]) => {
-    setProjection(generateProjection(SARAH, ACCOUNTS, updatedGoals));
+  const handleGoalAdded = useCallback((goal: Goal) => {
+    setActiveGoal(goal);
   }, []);
-
-  const handleGoalAdded = useCallback(
-    (goal: Goal) => {
-      setGoals((prev) => {
-        const next = [...prev, goal];
-        recalculate(next);
-        return next;
-      });
-      setActiveGoal(goal);
-    },
-    [recalculate]
-  );
 
   const handleGoalDrop = useCallback(
     (id: string, newYear: number) => {
       updateGoalYear(id, newYear);
-      const updated = getGoals();
-      setGoals(updated);
-      recalculate(updated);
-      const updatedGoal = updated.find((g) => g.id === id);
-      if (updatedGoal) setActiveGoal({ ...updatedGoal });
+      setActiveGoal((prev) => (prev?.id === id ? { ...prev, targetYear: newYear } : prev));
     },
-    [recalculate]
+    [updateGoalYear]
   );
 
   const handleGoalClick = useCallback((goal: Goal) => {
@@ -75,17 +69,12 @@ export default function TimelinePage() {
   const handleGoalDelete = useCallback(
     (id: string) => {
       deleteGoal(id);
-      const updated = getGoals();
-      setGoals(updated);
-      recalculate(updated);
       setActiveGoal((prev) => (prev?.id === id ? null : prev));
     },
-    [recalculate]
+    [deleteGoal]
   );
 
-  const handleClosePanel = useCallback(() => {
-    setActiveGoal(null);
-  }, []);
+  const handleClosePanel = useCallback(() => setActiveGoal(null), []);
 
   return (
     <div className="h-screen bg-[#0D0D0D] flex flex-col overflow-hidden relative">
@@ -121,45 +110,42 @@ export default function TimelinePage() {
         <GoalInput onGoalAdded={handleGoalAdded} />
       </div>
 
-      {/* Timeline canvas — always visible once loaded */}
-      {loaded && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="flex-1 flex flex-col overflow-hidden relative"
-        >
-          <TimelineCanvas
-            goals={goals}
-            projection={projection}
-            onGoalDrop={handleGoalDrop}
-            onGoalClick={handleGoalClick}
-            onGoalDelete={handleGoalDelete}
-            activeGoalId={activeGoal?.id ?? null}
-          />
+      {/* Timeline canvas */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="flex-1 flex flex-col overflow-hidden relative"
+      >
+        <TimelineCanvas
+          goals={goals}
+          projection={projection}
+          onGoalDrop={handleGoalDrop}
+          onGoalClick={handleGoalClick}
+          onGoalDelete={handleGoalDelete}
+          activeGoalId={activeGoal?.id ?? null}
+        />
 
-          {/* Empty-state hint overlaid inside canvas */}
-          {goals.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-              style={{ top: '160px' }} // below chart
+        {goals.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+            style={{ top: '160px' }}
+          >
+            <p className="text-[#4B5563] text-sm text-center px-8">
+              Add your first goal above — your timeline will appear here
+            </p>
+            <button
+              onClick={() => router.push('/what-matters')}
+              className="mt-3 px-5 py-2.5 bg-[#00C896] text-[#0D0D0D] font-semibold rounded-xl text-sm pointer-events-auto active:scale-[0.97] transition-all"
             >
-              <p className="text-[#4B5563] text-sm text-center px-8">
-                Add your first goal above — your timeline will appear here
-              </p>
-              <button
-                onClick={() => router.push('/what-matters')}
-                className="mt-3 px-5 py-2.5 bg-[#00C896] text-[#0D0D0D] font-semibold rounded-xl text-sm pointer-events-auto active:scale-[0.97] transition-all"
-              >
-                Add a goal →
-              </button>
-            </motion.div>
-          )}
-        </motion.div>
-      )}
+              Add a goal →
+            </button>
+          </motion.div>
+        )}
+      </motion.div>
 
       {/* AI Impact Panel */}
       <AIPanel goal={activeGoal} onClose={handleClosePanel} />
@@ -181,7 +167,7 @@ export default function TimelinePage() {
               transition={{ type: 'spring', damping: 28, stiffness: 260 }}
               className="fixed inset-x-4 bottom-6 z-50 bg-[#1A1A1A] rounded-3xl border border-[#2A2A2A] p-6"
             >
-              <WelcomeCard onDismiss={dismissWelcome} />
+              <WelcomeCard profile={profile} onDismiss={dismissWelcome} />
             </motion.div>
           </>
         )}
@@ -190,13 +176,14 @@ export default function TimelinePage() {
   );
 }
 
-function WelcomeCard({ onDismiss }: { onDismiss: () => void }) {
-  const profile = getProfile();
-  const firstName = (profile?.fullName ?? 'Sarah').split(' ')[0];
-  const income = profile?.income ?? SARAH.income;
-  const province = profile?.province ?? SARAH.province;
-  const savingsCapacity = profile?.monthlySavingsCapacity ?? SARAH.monthlySavingsCapacity;
-  const retirementAge = 65;
+function WelcomeCard({
+  profile,
+  onDismiss,
+}: {
+  profile: { fullName: string; income: number; province: string; monthlySavingsCapacity: number };
+  onDismiss: () => void;
+}) {
+  const firstName = profile.fullName.split(' ')[0];
 
   return (
     <>
@@ -209,10 +196,10 @@ function WelcomeCard({ onDismiss }: { onDismiss: () => void }) {
 
       <div className="grid grid-cols-2 gap-3 mb-5">
         {[
-          { label: 'Annual income', value: `$${income.toLocaleString('en-CA')}` },
-          { label: 'Monthly savings', value: `~$${savingsCapacity.toLocaleString('en-CA')}` },
-          { label: 'Province', value: province },
-          { label: 'Retirement target', value: `Age ${retirementAge}` },
+          { label: 'Annual income', value: `$${profile.income.toLocaleString('en-CA')}` },
+          { label: 'Monthly savings', value: `~$${profile.monthlySavingsCapacity.toLocaleString('en-CA')}` },
+          { label: 'Province', value: profile.province },
+          { label: 'Retirement target', value: 'Age 65' },
           { label: 'Portfolio growth', value: '6% / year' },
           { label: 'Income growth', value: '2.5% / year' },
         ].map((item) => (

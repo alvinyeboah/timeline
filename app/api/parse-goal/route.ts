@@ -17,6 +17,7 @@ Rules:
 - monthlyContributionNeeded = estimatedCost / ((targetYear - ${CURRENT_YEAR}) * 12)
 - type must be one of: real_estate, career, education, travel, retirement, custom
 - name should be a short, clear title (max 8 words)
+- location should be city or region if mentioned (e.g. "Vancouver", "Toronto"), omit if not mentioned
 - Return ONLY valid JSON — no markdown, no explanation, no code blocks
 
 JSON format:
@@ -27,6 +28,7 @@ JSON format:
   "targetYear": <year>,
   "estimatedCost": <amount>,
   "monthlyContributionNeeded": <monthly amount>,
+  "location": "<city or region, optional>",
   "rawInput": "<original user text>",
   "createdAt": "<ISO date string>"
 }`;

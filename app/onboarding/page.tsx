@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { ACCOUNTS, NET_WORTH } from '@/lib/mock-data';
 import { calculateTax, CANADIAN_PROVINCES } from '@/lib/tax';
-import { addExtraAccount, getExtraAccounts, removeExtraAccount, ExtraAccount } from '@/lib/accounts-storage';
-import { saveProfile } from '@/lib/profile-storage';
+import { ExtraAccount } from '@/lib/accounts-storage';
+import { useAccountsStore } from '@/store/accounts';
+import { useProfileStore } from '@/store/profile';
 import AccountCard from '@/components/accounts/AccountCard';
 import OnboardingStep from '@/components/ui/OnboardingStep';
 import { TrendUpIcon, LayoutIcon, CompassIcon, UsersIcon, PlusIcon, XIcon } from '@/components/ui/icons';
@@ -31,15 +32,14 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
 
   // ── Step 3 — Accounts ──────────────────────────────────────────────────────
-  const [extraAccounts, setExtraAccounts] = useState<ExtraAccount[]>([]);
+  const extraAccounts = useAccountsStore((s) => s.extraAccounts);
+  const addAccount = useAccountsStore((s) => s.addAccount);
+  const removeAccount = useAccountsStore((s) => s.removeAccount);
+
   const [addingAccount, setAddingAccount] = useState(false);
   const [newInstitution, setNewInstitution] = useState('');
   const [newAccountType, setNewAccountType] = useState('');
   const [newBalance, setNewBalance] = useState('');
-
-  useEffect(() => {
-    setExtraAccounts(getExtraAccounts());
-  }, []);
 
   const handleAddAccount = () => {
     if (!newInstitution || !newAccountType || !newBalance) return;
@@ -52,8 +52,7 @@ export default function OnboardingPage() {
       connected: true,
       addedAt: new Date().toISOString(),
     };
-    addExtraAccount(account);
-    setExtraAccounts(getExtraAccounts());
+    addAccount(account);
     setNewInstitution('');
     setNewAccountType('');
     setNewBalance('');
@@ -61,12 +60,15 @@ export default function OnboardingPage() {
   };
 
   // ── Step 4 — Profile ───────────────────────────────────────────────────────
-  const [age, setAge] = useState(28);
-  const [income, setIncome] = useState(95000);
-  const [province, setProvince] = useState('Ontario');
-  const [monthlyExpenses, setMonthlyExpenses] = useState(3800);
-  const [totalDebt, setTotalDebt] = useState(12000);
-  const [debtPriority, setDebtPriority] = useState<'ignore' | 'minimums_first' | 'debt_first' | 'custom'>('minimums_first');
+  const storedProfile = useProfileStore((s) => s.profile);
+  const setProfile = useProfileStore((s) => s.setProfile);
+
+  const [age, setAge] = useState(storedProfile.age);
+  const [income, setIncome] = useState(storedProfile.income);
+  const [province, setProvince] = useState(storedProfile.province);
+  const [monthlyExpenses, setMonthlyExpenses] = useState(storedProfile.monthlyExpenses);
+  const [totalDebt, setTotalDebt] = useState(storedProfile.totalDebt);
+  const [debtPriority, setDebtPriority] = useState<'ignore' | 'minimums_first' | 'debt_first' | 'custom'>(storedProfile.debtPriority);
 
   const taxInfo = useMemo(() => calculateTax(income, province), [income, province]);
   const savingsCapacity = Math.max(0, Math.round(taxInfo.afterTaxMonthly - monthlyExpenses - (totalDebt / 60)));
@@ -74,11 +76,10 @@ export default function OnboardingPage() {
   // ── Navigation ─────────────────────────────────────────────────────────────
   const next = () => {
     if (step === TOTAL_STEPS) {
-      // Save profile to localStorage before continuing
-      saveProfile({
-        fullName: 'Sarah Chen',
-        phone: '+1 (416) 555-0142',
-        email: 'sarah.chen@email.com',
+      setProfile({
+        fullName: storedProfile.fullName,
+        phone: storedProfile.phone,
+        email: storedProfile.email,
         age,
         income,
         province,
@@ -230,10 +231,7 @@ export default function OnboardingPage() {
                   <p className="text-[#9CA3AF] text-xs mt-0.5">${account.balance.toLocaleString('en-CA')}</p>
                 </div>
                 <button
-                  onClick={() => {
-                    removeExtraAccount(account.id);
-                    setExtraAccounts(getExtraAccounts());
-                  }}
+                  onClick={() => removeAccount(account.id)}
                   className="w-7 h-7 rounded-lg border border-[#2A2A2A] flex items-center justify-center text-[#6B7280] hover:text-red-400 transition-colors"
                 >
                   <XIcon size={12} strokeWidth={2} />

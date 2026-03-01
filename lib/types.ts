@@ -27,6 +27,8 @@ export interface Goal {
   estimatedCost: number;
   monthlyContributionNeeded: number;
   rawInput: string;
+  location?: string;
+  priority?: 'higher' | 'same' | 'lower';
   aiAnalysis?: string;
   createdAt: string;
 }

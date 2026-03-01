@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Goal } from '@/lib/types';
-import { saveGoal } from '@/lib/goals-storage';
+import { useGoalsStore } from '@/store/goals';
 import { PlusIcon, XIcon } from '@/components/ui/icons';
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
 }
 
 export default function GoalInput({ onGoalAdded }: Props) {
+  const addGoal = useGoalsStore((s) => s.addGoal);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,7 +34,7 @@ export default function GoalInput({ onGoalAdded }: Props) {
         throw new Error(data.error || 'Failed to parse goal');
       }
       const goal: Goal = await res.json();
-      saveGoal(goal);
+      addGoal(goal);
       onGoalAdded(goal);
       setInput('');
       setExpanded(false);
