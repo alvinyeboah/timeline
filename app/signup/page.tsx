@@ -55,7 +55,7 @@ export default function SignupPage() {
 
     // Brief pause to let the loading state register visually
     await new Promise((resolve) => setTimeout(resolve, 600));
-    router.push('/onboarding');
+    router.push('/onboarding?step=2');
   };
 
   const textFields: Array<{

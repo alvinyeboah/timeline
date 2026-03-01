@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ACCOUNTS, NET_WORTH } from '@/lib/mock-data';
 import { calculateTax, CANADIAN_PROVINCES } from '@/lib/tax';
 import { ExtraAccount } from '@/lib/accounts-storage';
@@ -27,9 +27,16 @@ const TOTAL_STEPS = 4;
 const INSTITUTIONS = ['RBC', 'TD', 'CIBC', 'BMO', 'Scotiabank', 'National Bank', 'Credit Union', 'Pension Fund'];
 const ACCOUNT_TYPES = ['Chequing', 'Savings', 'Investment', 'RRSP', 'TFSA', 'Pension', 'RESP'];
 
-export default function OnboardingPage() {
+function OnboardingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
+
+  // Allow ?step=2 so signup can land directly on step 2
+  useEffect(() => {
+    const s = Number(searchParams.get('step'));
+    if (s >= 1 && s <= TOTAL_STEPS) setStep(s);
+  }, [searchParams]);
 
   // ── Step 3 — Accounts ──────────────────────────────────────────────────────
   const extraAccounts = useAccountsStore((s) => s.extraAccounts);
@@ -483,5 +490,13 @@ export default function OnboardingPage() {
         </OnboardingStep>
       )}
     </AnimatePresence>
+  );
+}
+
+export default function OnboardingPageWrapper() {
+  return (
+    <Suspense>
+      <OnboardingPage />
+    </Suspense>
   );
 }
