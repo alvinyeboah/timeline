@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { SARAH, ACCOUNTS, NET_WORTH } from '@/lib/mock-data';
+import { ACCOUNTS, NET_WORTH } from '@/lib/mock-data';
+import { useProfileStore } from '@/store/profile';
 import AccountCard from '@/components/accounts/AccountCard';
 
 export default function SplashPage() {
   const router = useRouter();
+  const firstName = useProfileStore((s) => s.profile.fullName.split(' ')[0]);
   const [showStats, setShowStats] = useState(false);
   const [displayedAmount, setDisplayedAmount] = useState(0);
   const targetAmount = NET_WORTH;
@@ -56,7 +58,7 @@ export default function SplashPage() {
           transition={{ delay: 0.3 }}
           className="text-4xl font-bold text-white mb-8"
         >
-          {SARAH.name.split(' ')[0]}
+          {firstName}
         </motion.h1>
 
         {/* Net Worth */}
