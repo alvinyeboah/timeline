@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Goal } from '@/lib/types';
 import { useGoalsStore } from '@/store/goals';
-import { SARAH } from '@/lib/mock-data';
+import { useProfileStore } from '@/store/profile';
 import { GOAL_ICONS, XIcon } from '@/components/ui/icons';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
 
 export default function AIPanel({ goal, onClose }: Props) {
   const allGoals = useGoalsStore((s) => s.goals);
+  const profile = useProfileStore((s) => s.profile);
   const [streamedText, setStreamedText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -40,7 +41,7 @@ export default function AIPanel({ goal, onClose }: Props) {
     fetch('/api/explain-impact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, allGoals }),
+      body: JSON.stringify({ goal, allGoals, profile }),
       signal: controller.signal,
     })
       .then(async (res) => {
@@ -68,7 +69,8 @@ export default function AIPanel({ goal, onClose }: Props) {
     return () => controller.abort();
   }, [goal]);
 
-  const gap = goal ? goal.monthlyContributionNeeded - SARAH.monthlySavingsCapacity : 0;
+  const capacity = profile.monthlySavingsCapacity;
+  const gap = goal ? goal.monthlyContributionNeeded - capacity : 0;
 
   return (
     <AnimatePresence>
@@ -143,7 +145,7 @@ export default function AIPanel({ goal, onClose }: Props) {
             {[
               { label: 'Monthly needed', value: `$${goal.monthlyContributionNeeded.toLocaleString('en-CA')}`, color: 'text-[#E8B84B]' },
               { label: 'Gap', value: `${gap > 0 ? '+' : ''}$${Math.abs(gap).toLocaleString('en-CA')}`, color: gap > 0 ? 'text-red-400' : 'text-[#00C896]' },
-              { label: 'Your capacity', value: `$${SARAH.monthlySavingsCapacity.toLocaleString('en-CA')}`, color: 'text-white' },
+              { label: 'Your capacity', value: `$${capacity.toLocaleString('en-CA')}`, color: 'text-white' },
             ].map((item) => (
               <div key={item.label} className="p-3 bg-[#1A1A1A] rounded-xl border border-[#222] text-center">
                 <p className="text-[#6B7280] text-[10px] mb-1 uppercase tracking-widest">{item.label}</p>

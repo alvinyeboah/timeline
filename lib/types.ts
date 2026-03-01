@@ -6,7 +6,7 @@ export interface UserProfile {
   taxBracket: number;
   monthlyExpenses: number;
   totalDebt: number;
-  debtPriority: 'minimums_first' | 'debt_first' | 'goals_first';
+  debtPriority: 'minimums_first' | 'debt_first' | 'goals_first' | 'ignore' | 'custom';
   monthlySavingsCapacity: number;
 }
 

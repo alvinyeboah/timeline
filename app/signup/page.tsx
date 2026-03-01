@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useProfileStore } from '@/store/profile';
 import { ArrowLeftIcon } from '@/components/ui/icons';
 
 interface FormData {
@@ -27,6 +28,7 @@ const labelClass = 'block text-xs text-[#9CA3AF] uppercase tracking-widest mb-1.
 
 export default function SignupPage() {
   const router = useRouter();
+  const patchProfile = useProfileStore((s) => s.patchProfile);
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState<FormData>({
@@ -48,15 +50,12 @@ export default function SignupPage() {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      localStorage.setItem('timeline_signup', JSON.stringify(form));
-    } catch {
-      // localStorage may be unavailable in some environments — fail silently
-    }
+    // Persist name/contact into profile store (income/province set in onboarding step 4)
+    patchProfile({ fullName: form.fullName, phone: form.phone, email: form.email });
 
     // Brief pause to let the loading state register visually
     await new Promise((resolve) => setTimeout(resolve, 600));
-    router.push('/onboarding?step=2');
+    router.push('/onboarding');
   };
 
   const textFields: Array<{

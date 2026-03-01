@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Goal, ProjectionPoint } from '@/lib/types';
 import { ACCOUNTS, SARAH, NET_WORTH } from '@/lib/mock-data';
+import { UserProfile } from '@/lib/types';
 import { generateProjection } from '@/lib/projections';
 import { useGoalsStore } from '@/store/goals';
 import { useProfileStore } from '@/store/profile';
@@ -26,10 +27,18 @@ export default function TimelinePage() {
   const [activeGoal, setActiveGoal] = useState<Goal | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
 
-  // Recalculate projection whenever goals change
+  // Recalculate projection whenever goals or profile changes
   useEffect(() => {
-    setProjection(generateProjection(SARAH, ACCOUNTS, goals));
-  }, [goals]);
+    // Map StoredProfile → UserProfile shape for projection engine
+    const projProfile: UserProfile = {
+      ...SARAH,
+      income: profile.income,
+      monthlyExpenses: profile.monthlyExpenses,
+      totalDebt: profile.totalDebt,
+      taxBracket: profile.taxBracket,
+    };
+    setProjection(generateProjection(projProfile, ACCOUNTS, goals));
+  }, [goals, profile]);
 
   // Show welcome screen on first visit
   useEffect(() => {

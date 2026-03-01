@@ -1,4 +1,5 @@
 import { UserProfile, Account } from './types';
+import { StoredProfile } from './profile-storage';
 
 export const SARAH: UserProfile = {
   name: 'Sarah Chen',
@@ -54,3 +55,15 @@ You are a financial goal assistant for Sarah Chen:
 - Monthly savings capacity: ~$1,517/month
 - Current year: ${CURRENT_YEAR}
 `.trim();
+
+export function buildSystemContext(profile: StoredProfile): string {
+  const firstName = profile.fullName.split(' ')[0];
+  return `You are a financial goal assistant for ${firstName}:
+- Age: ${profile.age}, Province: ${profile.province}
+- Annual income: $${profile.income.toLocaleString('en-CA')} (marginal tax rate: ~${profile.taxBracket.toFixed(2)}%)
+- Net worth: $${NET_WORTH.toLocaleString('en-CA')} (Wealthsimple Invest: $32,230, Wealthsimple Spend: $16,070, RBC Chequing: $5,200)
+- Monthly expenses: $${profile.monthlyExpenses.toLocaleString('en-CA')}
+- Total debt: $${profile.totalDebt.toLocaleString('en-CA')} (paying minimums)
+- Monthly savings capacity: ~$${profile.monthlySavingsCapacity.toLocaleString('en-CA')}/month
+- Current year: ${CURRENT_YEAR}`.trim();
+}

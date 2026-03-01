@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { SARAH_SYSTEM_CONTEXT, CURRENT_YEAR } from '@/lib/mock-data';
+import { SARAH_SYSTEM_CONTEXT, buildSystemContext, CURRENT_YEAR } from '@/lib/mock-data';
 import { Goal } from '@/lib/types';
+import { StoredProfile } from '@/lib/profile-storage';
 
 function getClient() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
-const SYSTEM_PROMPT = `${SARAH_SYSTEM_CONTEXT}
+function buildPrompt(profile?: StoredProfile) {
+  const context = profile ? buildSystemContext(profile) : SARAH_SYSTEM_CONTEXT;
+  return `${context}
 
 You are a financial goal parser. Parse the user's goal into a structured JSON object.
 
@@ -32,6 +35,7 @@ JSON format:
   "rawInput": "<original user text>",
   "createdAt": "<ISO date string>"
 }`;
+}
 
 export async function POST(req: NextRequest) {
   if (!process.env.OPENAI_API_KEY) {
@@ -39,9 +43,11 @@ export async function POST(req: NextRequest) {
   }
 
   let text: string;
+  let profile: StoredProfile | undefined;
   try {
     const body = await req.json();
     text = body.text?.trim();
+    profile = body.profile;
     if (!text) throw new Error('No text provided');
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
@@ -51,7 +57,7 @@ export async function POST(req: NextRequest) {
     const completion = await getClient().chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: buildPrompt(profile) },
         { role: 'user', content: text },
       ],
       response_format: { type: 'json_object' },

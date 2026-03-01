@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Goal } from '@/lib/types';
 import { useGoalsStore } from '@/store/goals';
+import { useProfileStore } from '@/store/profile';
 import { PlusIcon, XIcon } from '@/components/ui/icons';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 
 export default function GoalInput({ onGoalAdded }: Props) {
   const addGoal = useGoalsStore((s) => s.addGoal);
+  const profile = useProfileStore((s) => s.profile);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,7 +29,7 @@ export default function GoalInput({ onGoalAdded }: Props) {
       const res = await fetch('/api/parse-goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, profile }),
       });
       if (!res.ok) {
         const data = await res.json();

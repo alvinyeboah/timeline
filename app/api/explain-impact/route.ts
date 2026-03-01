@@ -1,27 +1,32 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
-import { SARAH_SYSTEM_CONTEXT, CURRENT_YEAR } from '@/lib/mock-data';
+import { SARAH_SYSTEM_CONTEXT, buildSystemContext, CURRENT_YEAR } from '@/lib/mock-data';
 import { Goal } from '@/lib/types';
+import { StoredProfile } from '@/lib/profile-storage';
 
 function getClient() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
-const buildSystemPrompt = (allGoals: Goal[]) => {
+const buildSystemPrompt = (allGoals: Goal[], profile?: StoredProfile) => {
+  const context = profile ? buildSystemContext(profile) : SARAH_SYSTEM_CONTEXT;
+  const capacity = profile?.monthlySavingsCapacity ?? 1517;
+  const firstName = profile?.fullName?.split(' ')[0] ?? 'Sarah';
+
   const goalsContext =
     allGoals.length > 1
-      ? `\n\nSarah's other goals:\n${allGoals
+      ? `\n\n${firstName}'s other goals:\n${allGoals
           .map((g) => `- ${g.name} (${g.targetYear}): $${g.estimatedCost.toLocaleString()} — needs $${g.monthlyContributionNeeded}/mo`)
           .join('\n')}`
       : '';
 
-  return `${SARAH_SYSTEM_CONTEXT}${goalsContext}
+  return `${context}${goalsContext}
 
 You are a friendly, sharp financial advisor. Explain the financial impact of the goal provided in 3–4 sentences.
 
 Guidelines:
-- Be specific with numbers (use Sarah's actual savings capacity of $1,517/mo)
-- Calculate the gap (how much she needs vs. how much she has available)
+- Be specific with numbers (use ${firstName}'s actual savings capacity of $${capacity.toLocaleString('en-CA')}/mo)
+- Calculate the gap (how much they need vs. how much they have available)
 - Suggest 1–2 practical options to close the gap
 - Keep it conversational and encouraging, not scary
 - Current year: ${CURRENT_YEAR}
@@ -35,17 +40,21 @@ export async function POST(req: NextRequest) {
 
   let goal: Goal;
   let allGoals: Goal[] = [];
+  let profile: StoredProfile | undefined;
 
   try {
     const body = await req.json();
     goal = body.goal;
     allGoals = body.allGoals || [goal];
+    profile = body.profile;
     if (!goal) throw new Error('No goal provided');
   } catch {
     return new Response('Invalid request body', { status: 400 });
   }
 
-  const userMessage = `Explain the financial impact of this goal for Sarah:
+  const firstName = profile?.fullName?.split(' ')[0] ?? 'Sarah';
+
+  const userMessage = `Explain the financial impact of this goal for ${firstName}:
 Name: ${goal.name}
 Target year: ${goal.targetYear} (${goal.targetYear - CURRENT_YEAR} years away)
 Estimated cost: $${goal.estimatedCost.toLocaleString('en-CA')}
@@ -56,7 +65,7 @@ Original goal: "${goal.rawInput}"`;
     const stream = await getClient().chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: buildSystemPrompt(allGoals) },
+        { role: 'system', content: buildSystemPrompt(allGoals, profile) },
         { role: 'user', content: userMessage },
       ],
       stream: true,

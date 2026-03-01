@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Goal } from '@/lib/types';
 import { useGoalsStore } from '@/store/goals';
+import { useProfileStore } from '@/store/profile';
 import { ArrowLeftIcon } from '@/components/ui/icons';
 
 const GOAL_TYPE_LABELS: Record<Goal['type'], string> = {
@@ -19,6 +20,7 @@ const GOAL_TYPE_LABELS: Record<Goal['type'], string> = {
 export default function WhatMattersPage() {
   const router = useRouter();
   const addGoal = useGoalsStore((s) => s.addGoal);
+  const profile = useProfileStore((s) => s.profile);
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ export default function WhatMattersPage() {
       const res = await fetch('/api/parse-goal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, profile }),
       });
       if (!res.ok) {
         const data = await res.json();
