@@ -15,9 +15,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: '#0D0D0D',
+  themeColor: '#F5F4F0',
 };
 
 export default function RootLayout({
@@ -27,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} antialiased bg-[#0D0D0D] text-white overflow-x-hidden`}>
+      <body className={`${geistSans.variable} antialiased bg-[#F5F4F0] text-stone-900`}>
         {children}
       </body>
     </html>
