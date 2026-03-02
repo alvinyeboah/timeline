@@ -138,7 +138,9 @@ export default function TimelinePage() {
 
   const [projection, setProjection] = useState<ProjectionPoint[]>([]);
   const [hypotheticalProjection, setHypotheticalProjection] = useState<ProjectionPoint[]>([]);
-  const [activeGoal, setActiveGoal] = useState<Goal | null>(null);
+  const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
+  // Always derive from store so checklist/notes updates are reflected live
+  const activeGoal = activeGoalId ? (goals.find((g) => g.id === activeGoalId) ?? null) : null;
   const [viewMode, setViewMode] = useState<'reality' | 'possibility'>('reality');
   const [sliders, setSliders] = useState<Sliders>({ income: 0, growthRate: 6, incomeGrowth: 2.5 });
   const [comparison, setComparison] = useState<ComparisonData | null>(null);
@@ -193,7 +195,7 @@ export default function TimelinePage() {
     : undefined;
 
   const handleGoalAdded = useCallback((goal: Goal) => {
-    setActiveGoal(goal);
+    setActiveGoalId(goal.id);
     setComparison(null);
   }, []);
 
@@ -203,7 +205,7 @@ export default function TimelinePage() {
       if (!goal) return;
       const prevYear = goal.targetYear;
       updateGoalYear(id, newYear);
-      setActiveGoal((prev) => (prev?.id === id ? { ...prev, targetYear: newYear, previousYear: prevYear } : prev));
+      // activeGoal derives from store; updateGoalYear already saves previousYear there
 
       // Stream comparison analysis
       comparisonAbortRef.current?.abort();
@@ -236,24 +238,24 @@ export default function TimelinePage() {
   );
 
   const handleGoalClick = useCallback((goal: Goal) => {
-    setActiveGoal((prev) => {
-      if (prev?.id === goal.id) return null;
+    setActiveGoalId((prev) => {
+      if (prev === goal.id) return null;
       setComparison(null);
-      return goal;
+      return goal.id;
     });
   }, []);
 
   const handleGoalDelete = useCallback(
     (id: string) => {
       deleteGoal(id);
-      setActiveGoal((prev) => (prev?.id === id ? null : prev));
+      setActiveGoalId((prev) => (prev === id ? null : prev));
       setComparison(null);
     },
     [deleteGoal]
   );
 
   const handleClosePanel = useCallback(() => {
-    setActiveGoal(null);
+    setActiveGoalId(null);
     setComparison(null);
   }, []);
 
@@ -331,7 +333,7 @@ export default function TimelinePage() {
               onGoalDrop={handleGoalDrop}
               onGoalClick={handleGoalClick}
               onGoalDelete={handleGoalDelete}
-              activeGoalId={activeGoal?.id ?? null}
+              activeGoalId={activeGoalId}
               showHypothetical={viewMode === 'possibility' && hypotheticalProjection.length > 0}
             />
 

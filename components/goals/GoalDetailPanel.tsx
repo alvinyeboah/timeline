@@ -8,6 +8,11 @@ import { useProfileStore } from '@/store/profile';
 import { GOAL_ICONS, XIcon, CompassIcon } from '@/components/ui/icons';
 import AdvisorModal from './AdvisorModal';
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 interface ComparisonData {
   prevYear: number;
   newYear: number;
@@ -41,8 +46,16 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
   const [isStreaming, setIsStreaming] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
   const [generatingChecklist, setGeneratingChecklist] = useState(false);
+  const [checklistError, setChecklistError] = useState('');
   const [showAdvisor, setShowAdvisor] = useState(false);
   const [notes, setNotes] = useState(goal?.notes ?? '');
+
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatStreaming, setChatStreaming] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const lastKeyRef = useRef<string>('');
@@ -51,6 +64,12 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
   // Sync notes when goal changes
   useEffect(() => {
     setNotes(goal?.notes ?? '');
+  }, [goal?.id]);
+
+  // Clear chat when goal changes
+  useEffect(() => {
+    setChatMessages([]);
+    setChatInput('');
   }, [goal?.id]);
 
   // Stream analysis when goal changes
@@ -118,19 +137,75 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
   const handleGenerateChecklist = async () => {
     if (!goal) return;
     setGeneratingChecklist(true);
+    setChecklistError('');
     try {
       const res = await fetch('/api/generate-checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal, profile }),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Server error ${res.status}`);
+      }
       const { checklist } = await res.json();
       updateGoalChecklist(goal.id, checklist);
-    } catch {
-      // silently fail
+    } catch (err) {
+      setChecklistError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
       setGeneratingChecklist(false);
+    }
+  };
+
+  const handleChatSend = async () => {
+    const text = chatInput.trim();
+    if (!text || chatStreaming || !goal) return;
+
+    const userMsg: ChatMessage = { role: 'user', content: text };
+    const updatedMessages = [...chatMessages, userMsg];
+    setChatMessages(updatedMessages);
+    setChatInput('');
+    setChatStreaming(true);
+
+    // Add placeholder assistant message
+    setChatMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+
+    chatAbortRef.current?.abort();
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
+
+    try {
+      const res = await fetch('/api/chat-goal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal, profile, messages: updatedMessages }),
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) throw new Error('Failed');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let reply = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        reply += decoder.decode(value, { stream: true });
+        setChatMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: reply };
+          return next;
+        });
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setChatMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { role: 'assistant', content: 'Sorry, something went wrong.' };
+          return next;
+        });
+      }
+    } finally {
+      setChatStreaming(false);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     }
   };
 
@@ -302,20 +377,25 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
                   className="overflow-hidden"
                 >
                   {checklist.length === 0 ? (
-                    <button
-                      onClick={handleGenerateChecklist}
-                      disabled={generatingChecklist}
-                      className="w-full mt-2 py-2.5 border border-stone-200 rounded-xl text-sm text-[#00C896] font-medium hover:bg-stone-50 transition disabled:opacity-50"
-                    >
-                      {generatingChecklist ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="w-3 h-3 border-2 border-[#00C896]/30 border-t-[#00C896] rounded-full animate-spin" />
-                          Generating roadmap…
-                        </span>
-                      ) : (
-                        'Generate your roadmap →'
+                    <div className="mt-2 flex flex-col gap-2">
+                      <button
+                        onClick={handleGenerateChecklist}
+                        disabled={generatingChecklist}
+                        className="w-full py-2.5 border border-stone-200 rounded-xl text-sm text-[#00C896] font-medium hover:bg-stone-50 transition disabled:opacity-50"
+                      >
+                        {generatingChecklist ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <span className="w-3 h-3 border-2 border-[#00C896]/30 border-t-[#00C896] rounded-full animate-spin" />
+                            Generating roadmap…
+                          </span>
+                        ) : (
+                          'Generate your roadmap →'
+                        )}
+                      </button>
+                      {checklistError && (
+                        <p className="text-xs text-red-500 text-center">{checklistError}</p>
                       )}
-                    </button>
+                    </div>
                   ) : (
                     <div className="mt-2 space-y-4">
                       {HORIZON_ORDER.map((horizon) => {
@@ -355,7 +435,76 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
             </AnimatePresence>
           </div>
 
-          {/* ⑤ Notes */}
+          {/* ⑤ Chat */}
+          <div className="px-4 mb-4">
+            <div className="border border-stone-200 rounded-2xl overflow-hidden">
+              {/* Header */}
+              <div className="px-4 py-3 bg-stone-50 border-b border-stone-200 flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-[#00C896]/15 flex items-center justify-center shrink-0">
+                  <span className="text-[#00C896] text-[10px] font-bold">AI</span>
+                </div>
+                <p className="text-xs font-semibold text-stone-700">Ask about this goal</p>
+              </div>
+
+              {/* Messages */}
+              {chatMessages.length > 0 && (
+                <div className="px-3 py-3 flex flex-col gap-2.5 max-h-56 overflow-y-auto">
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-snug ${
+                          msg.role === 'user'
+                            ? 'bg-stone-900 text-white rounded-br-sm'
+                            : 'bg-stone-100 text-stone-700 rounded-bl-sm'
+                        }`}
+                      >
+                        {msg.content}
+                        {msg.role === 'assistant' && chatStreaming && i === chatMessages.length - 1 && !msg.content && (
+                          <span className="flex gap-1 py-0.5">
+                            {[0, 1, 2].map((j) => (
+                              <span key={j} className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" style={{ animationDelay: `${j * 0.12}s` }} />
+                            ))}
+                          </span>
+                        )}
+                        {msg.role === 'assistant' && chatStreaming && i === chatMessages.length - 1 && msg.content && (
+                          <span className="inline-block w-0.5 h-[0.9em] bg-[#00C896] ml-0.5 animate-pulse align-text-bottom" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+              )}
+
+              {/* Input */}
+              <div className={`flex gap-2 p-2 ${chatMessages.length > 0 ? 'border-t border-stone-200' : ''}`}>
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleChatSend()}
+                  placeholder={chatMessages.length === 0 ? `Ask anything about ${goal.name}…` : 'Ask a follow-up…'}
+                  disabled={chatStreaming}
+                  className="flex-1 bg-transparent px-2 py-1.5 text-sm text-stone-900 placeholder-stone-400 focus:outline-none disabled:opacity-50"
+                />
+                <button
+                  onClick={handleChatSend}
+                  disabled={!chatInput.trim() || chatStreaming}
+                  className="w-7 h-7 bg-stone-900 text-white rounded-lg flex items-center justify-center hover:bg-stone-700 disabled:opacity-30 transition shrink-0"
+                >
+                  {chatStreaming ? (
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ⑥ Notes */}
           <div className="px-4 mb-4">
             <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Your notes</p>
             <textarea
