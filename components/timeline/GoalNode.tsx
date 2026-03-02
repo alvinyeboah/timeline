@@ -101,7 +101,7 @@ export default function GoalNode({
             backgroundColor: isActive ? color : color + 'D0',
           }}
         >
-          <GoalIcon size={18} strokeWidth={1.5} color="white" />
+          <GoalIcon size={18} strokeWidth={1.5} className="text-white" />
         </motion.div>
       </div>
 
