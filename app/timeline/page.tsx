@@ -25,6 +25,64 @@ interface Sliders {
   incomeGrowth: number;
 }
 
+function AddGoalInline({ onGoalAdded }: { onGoalAdded: (g: Goal) => void }) {
+  const addGoal = useGoalsStore((s) => s.addGoal);
+  const profile = useProfileStore((s) => s.profile);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
+    const text = input.trim();
+    if (!text) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/parse-goal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, profile }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      const goal: Goal = await res.json();
+      addGoal(goal);
+      onGoalAdded(goal);
+      setInput('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          placeholder="Buy a house in 5 years…"
+          disabled={loading}
+          autoFocus
+          className="flex-1 px-4 py-3 bg-[#F5F4F0] border border-stone-200 rounded-xl text-stone-900 text-sm placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#00C896]/30 focus:border-[#00C896]/50 transition disabled:opacity-50"
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={!input.trim() || loading}
+          className="px-5 py-3 bg-stone-900 text-white font-semibold rounded-xl text-sm hover:bg-stone-800 disabled:opacity-40 transition flex items-center gap-2 whitespace-nowrap"
+        >
+          {loading ? (
+            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : '→'}
+        </button>
+      </div>
+      {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+    </div>
+  );
+}
+
 export default function TimelinePage() {
   const goals = useGoalsStore((s) => s.goals);
   const updateGoalYear = useGoalsStore((s) => s.updateGoalYear);
@@ -236,18 +294,22 @@ export default function TimelinePage() {
             />
           </motion.div>
 
-          {/* Empty state */}
+          {/* Empty state — big prominent CTA */}
           {goals.length === 0 && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-              style={{ top: '200px' }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="absolute inset-0 flex flex-col items-center justify-center"
             >
-              <p className="text-stone-400 text-sm text-center px-8">
-                Add your first goal above — your timeline will appear here
-              </p>
+              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm px-12 py-10 text-center max-w-md">
+                <p className="text-stone-400 text-xs uppercase tracking-widest mb-3">Get started</p>
+                <h2 className="text-2xl font-bold text-stone-900 mb-2">Add your first goal</h2>
+                <p className="text-stone-500 text-sm leading-relaxed mb-7">
+                  Describe it in plain English — &ldquo;buy a house in 5 years&rdquo; or &ldquo;retire at 55&rdquo; — and we&apos;ll translate it into a financial plan.
+                </p>
+                <AddGoalInline onGoalAdded={handleGoalAdded} />
+              </div>
             </motion.div>
           )}
         </div>
