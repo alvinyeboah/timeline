@@ -11,7 +11,6 @@ import { useProfileStore } from '@/store/profile';
 import TimelineCanvas from '@/components/timeline/TimelineCanvas';
 import GoalDetailPanel from '@/components/goals/GoalDetailPanel';
 import AssumptionPanel from '@/components/goals/AssumptionPanel';
-import GoalInput from '@/components/ai/GoalInput';
 
 interface ComparisonData {
   prevYear: number;
@@ -25,12 +24,19 @@ interface Sliders {
   incomeGrowth: number;
 }
 
-function AddGoalInline({ onGoalAdded }: { onGoalAdded: (g: Goal) => void }) {
+function AddGoalButton({ onGoalAdded }: { onGoalAdded: (g: Goal) => void }) {
   const addGoal = useGoalsStore((s) => s.addGoal);
   const profile = useProfileStore((s) => s.profile);
+  const [expanded, setExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleExpand = () => {
+    setExpanded(true);
+    setTimeout(() => inputRef.current?.focus(), 60);
+  };
 
   const handleSubmit = async () => {
     const text = input.trim();
@@ -48,6 +54,7 @@ function AddGoalInline({ onGoalAdded }: { onGoalAdded: (g: Goal) => void }) {
       addGoal(goal);
       onGoalAdded(goal);
       setInput('');
+      setExpanded(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -55,30 +62,70 @@ function AddGoalInline({ onGoalAdded }: { onGoalAdded: (g: Goal) => void }) {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSubmit();
+    if (e.key === 'Escape') { setExpanded(false); setInput(''); setError(''); }
+  };
+
+  const handleClose = () => { setExpanded(false); setInput(''); setError(''); };
+
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          placeholder="Buy a house in 5 years…"
-          disabled={loading}
-          autoFocus
-          className="flex-1 px-4 py-3 bg-[#F5F4F0] border border-stone-200 rounded-xl text-stone-900 text-sm placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#00C896]/30 focus:border-[#00C896]/50 transition disabled:opacity-50"
-        />
-        <button
-          onClick={handleSubmit}
-          disabled={!input.trim() || loading}
-          className="px-5 py-3 bg-stone-900 text-white font-semibold rounded-xl text-sm hover:bg-stone-800 disabled:opacity-40 transition flex items-center gap-2 whitespace-nowrap"
-        >
-          {loading ? (
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : '→'}
-        </button>
-      </div>
-      {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+    <div className="flex flex-col items-center gap-1.5">
+      <AnimatePresence mode="wait">
+        {!expanded ? (
+          <motion.button
+            key="pill"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.12 } }}
+            onClick={handleExpand}
+            className="group flex items-center gap-2.5 px-5 py-2.5 bg-white border border-stone-200 rounded-full shadow-sm hover:shadow-md hover:border-stone-300 active:scale-[0.97] transition-all"
+          >
+            <div className="w-5 h-5 rounded-full bg-stone-900 flex items-center justify-center shrink-0">
+              <span className="text-white text-sm font-bold leading-none" style={{ marginTop: '-1px' }}>+</span>
+            </div>
+            <span className="text-stone-600 text-sm font-medium group-hover:text-stone-900 transition-colors">
+              Add a goal
+            </span>
+          </motion.button>
+        ) : (
+          <motion.div
+            key="input"
+            initial={{ opacity: 0, width: 300, scale: 0.96 }}
+            animate={{ opacity: 1, width: 500, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.15 } }}
+            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            className="flex gap-2 bg-white border border-stone-200 rounded-2xl shadow-lg p-2"
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Buy a house in 5 years…"
+              disabled={loading}
+              className="flex-1 px-3 py-2 text-stone-900 text-sm placeholder-stone-400 focus:outline-none bg-transparent"
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={!input.trim() || loading}
+              className="px-4 py-2 bg-stone-900 text-white font-semibold rounded-xl text-sm hover:bg-stone-800 disabled:opacity-40 transition flex items-center gap-2 whitespace-nowrap"
+            >
+              {loading ? (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : '→'}
+            </button>
+            <button
+              onClick={handleClose}
+              className="w-9 h-9 flex items-center justify-center text-stone-400 hover:text-stone-700 transition rounded-xl hover:bg-stone-100 text-lg leading-none"
+            >
+              ×
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {error && <p className="text-red-500 text-xs">{error}</p>}
     </div>
   );
 }
@@ -227,13 +274,8 @@ export default function TimelinePage() {
           </div>
         </div>
 
-        {/* Center: Goal input */}
-        <div className="flex-1 flex justify-center">
-          <GoalInput onGoalAdded={handleGoalAdded} />
-        </div>
-
         {/* Right: Reality/Possibility toggle + net worth */}
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-4 shrink-0 ml-auto">
           {/* Segmented pill toggle */}
           <div className="flex bg-stone-100 rounded-xl p-0.5 gap-0.5">
             {(['reality', 'possibility'] as const).map((mode) => (
@@ -276,12 +318,12 @@ export default function TimelinePage() {
             )}
           </AnimatePresence>
 
-          {/* Timeline canvas (chart + strip) */}
+          {/* Timeline canvas (chart + strip) — relative so the floating button can overlay it */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="flex-1 flex flex-col overflow-hidden"
+            className="flex-1 flex flex-col overflow-hidden relative"
           >
             <TimelineCanvas
               goals={goals}
@@ -292,23 +334,32 @@ export default function TimelinePage() {
               activeGoalId={activeGoal?.id ?? null}
               showHypothetical={viewMode === 'possibility' && hypotheticalProjection.length > 0}
             />
+
+            {/* Floating "Add a goal" button — always visible, positioned at top-center of canvas */}
+            {goals.length > 0 && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                <div className="pointer-events-auto">
+                  <AddGoalButton onGoalAdded={handleGoalAdded} />
+                </div>
+              </div>
+            )}
           </motion.div>
 
-          {/* Empty state — big prominent CTA */}
+          {/* Empty state — shown when no goals */}
           {goals.length === 0 && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="absolute inset-0 flex flex-col items-center justify-center"
+              className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
             >
-              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm px-12 py-10 text-center max-w-md">
+              <div className="bg-white rounded-3xl border border-stone-200 shadow-sm px-12 py-10 text-center max-w-md pointer-events-auto">
                 <p className="text-stone-400 text-xs uppercase tracking-widest mb-3">Get started</p>
                 <h2 className="text-2xl font-bold text-stone-900 mb-2">Add your first goal</h2>
                 <p className="text-stone-500 text-sm leading-relaxed mb-7">
                   Describe it in plain English — &ldquo;buy a house in 5 years&rdquo; or &ldquo;retire at 55&rdquo; — and we&apos;ll translate it into a financial plan.
                 </p>
-                <AddGoalInline onGoalAdded={handleGoalAdded} />
+                <AddGoalButton onGoalAdded={handleGoalAdded} />
               </div>
             </motion.div>
           )}
