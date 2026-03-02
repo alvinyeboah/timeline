@@ -3,81 +3,41 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { ACCOUNTS, NET_WORTH, CURRENT_YEAR, PROJECTION_END_YEAR } from '@/lib/mock-data';
+import { ACCOUNTS, NET_WORTH } from '@/lib/mock-data';
 import { useProfileStore } from '@/store/profile';
+import { TimelineIcon, EditIcon, MoveIcon, SlidersIcon } from '@/components/ui/icons';
 
-const DEMO_GOALS = [
-  { name: 'Emergency Fund', year: CURRENT_YEAR,      color: '#00C896' },
-  { name: 'Europe Trip',    year: CURRENT_YEAR + 1,  color: '#60A5FA' },
-  { name: 'MBA',            year: CURRENT_YEAR + 2,  color: '#A78BFA' },
-  { name: 'Buy Condo',      year: CURRENT_YEAR + 4,  color: '#34D399' },
-  { name: 'Career Switch',  year: CURRENT_YEAR + 6,  color: '#F59E0B' },
-  { name: 'Studio',         year: CURRENT_YEAR + 10, color: '#F87171' },
-  { name: 'Retire at 55',   year: CURRENT_YEAR + 26, color: '#00C896' },
+const FEATURES = [
+  {
+    num: '01',
+    color: '#B8C43D',
+    title: 'FULL PICTURE',
+    desc: 'Every milestone from today to retirement — net worth in one continuous view.',
+    Icon: TimelineIcon,
+  },
+  {
+    num: '02',
+    color: '#6BBFAC',
+    title: 'AI GOALS',
+    desc: 'Describe what you want in plain English and we\'ll build a complete plan.',
+    Icon: EditIcon,
+  },
+  {
+    num: '03',
+    color: '#D47E6A',
+    title: 'TRADE-OFFS',
+    desc: 'Drag goals forward or back and watch your net worth update in real time.',
+    Icon: MoveIcon,
+  },
+  {
+    num: '04',
+    color: '#96785A',
+    title: 'ASSUMPTIONS',
+    desc: 'Adjust income, savings rate, or returns. The picture recalibrates instantly.',
+    Icon: SlidersIcon,
+  },
 ];
-const YEAR_RANGE = PROJECTION_END_YEAR - CURRENT_YEAR;
 
-function TimelinePreview() {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 2200);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div className="relative w-full h-full" aria-hidden>
-      {/* Horizontal grid lines */}
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="absolute w-full h-px bg-stone-200" style={{ top: `${20 + i * 15}%` }} />
-      ))}
-      {/* "Now" line */}
-      <div className="absolute top-0 bottom-8 left-[4%] w-px bg-[#00C896]/50" />
-      {/* Projection curve */}
-      <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="lg" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#00C896" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#00C896" stopOpacity="0.5" />
-          </linearGradient>
-        </defs>
-        <path d="M 0,78% C 15%,72% 30%,55% 50%,35% S 80%,12% 100%,5%" stroke="url(#lg)" strokeWidth="2" fill="none" />
-      </svg>
-      {/* Goal nodes */}
-      {DEMO_GOALS.map((goal, i) => {
-        const xPct = ((goal.year - CURRENT_YEAR) / YEAR_RANGE) * 88 + 4;
-        const isActive = tick % DEMO_GOALS.length === i;
-        return (
-          <motion.div
-            key={goal.name}
-            className="absolute flex flex-col items-center"
-            style={{ left: `${xPct}%`, top: '28%', transform: 'translateX(-50%)' }}
-            animate={{ opacity: isActive ? 1 : 0.3, scale: isActive ? 1.08 : 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <motion.div
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: goal.color }}
-              animate={{ boxShadow: isActive ? `0 0 10px ${goal.color}60` : 'none' }}
-            />
-            <div className="w-px h-7 mt-1" style={{ backgroundColor: `${goal.color}40` }} />
-            <div
-              className="px-2 py-0.5 rounded-lg border text-[8px] font-medium text-stone-500 whitespace-nowrap"
-              style={{ borderColor: `${goal.color}30`, backgroundColor: `${goal.color}08` }}
-            >
-              {goal.name}
-            </div>
-          </motion.div>
-        );
-      })}
-      {/* Year labels */}
-      <div className="absolute bottom-2 left-0 right-0 flex justify-between px-4">
-        {[CURRENT_YEAR, CURRENT_YEAR + 5, CURRENT_YEAR + 10, CURRENT_YEAR + 15, CURRENT_YEAR + 20, CURRENT_YEAR + 25, CURRENT_YEAR + 30].map((y) => (
-          <span key={y} className="text-[9px] text-stone-300 tabular-nums">{y}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function SplashPage() {
   const router = useRouter();
@@ -193,19 +153,55 @@ export default function SplashPage() {
         </motion.p>
       </div>
 
-      {/* ── Right: decorative light timeline ─────────────────────────────────── */}
-      <div className="w-[45%] relative overflow-hidden bg-[#F5F4F0]">
-        {/* Subtle accent circles */}
-        <div className="absolute top-1/4 right-1/4 w-80 h-80 bg-[#00C896]/6 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/3 left-1/3 w-60 h-60 bg-[#D97706]/5 rounded-full blur-3xl pointer-events-none" />
+      {/* ── Right: 4-column infographic ──────────────────────────────────────── */}
+      <div className="w-[45%] bg-[#EDECEA] flex flex-col justify-between py-12 px-4 overflow-hidden">
+        {/* Section label */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="text-center mb-2"
+        >
+          <span className="text-stone-400 text-[10px] tracking-[0.3em] uppercase font-normal">How it </span>
+          <span className="text-stone-700 text-[10px] tracking-[0.3em] uppercase font-bold">works</span>
+        </motion.div>
 
-        <div className="absolute top-12 left-10 z-10">
-          <p className="text-stone-400 text-[10px] uppercase tracking-widest">Your life timeline</p>
-          <p className="text-stone-300 text-xs mt-0.5">{CURRENT_YEAR} → {PROJECTION_END_YEAR}</p>
-        </div>
+        {/* 4-column grid */}
+        <div className="flex-1 grid grid-cols-4">
+          {FEATURES.map((f, i) => (
+            <motion.div
+              key={f.num}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 + i * 0.09, duration: 0.5, ease: 'easeOut' }}
+              className="flex flex-col px-4 border-r border-stone-300/40 last:border-r-0 pt-4"
+            >
+              {/* Giant cropped number */}
+              <div className="h-28 overflow-hidden flex items-end">
+                <span
+                  className="font-bold select-none leading-none"
+                  style={{ fontSize: '148px', color: f.color }}
+                >
+                  {f.num}
+                </span>
+              </div>
 
-        <div className="absolute inset-0 pt-28 pb-8">
-          <TimelinePreview />
+              {/* Bold title */}
+              <h3 className="text-[9px] font-bold text-stone-900 uppercase tracking-widest mt-3 mb-2">
+                {f.title}
+              </h3>
+
+              {/* Description */}
+              <p className="text-stone-400 text-[10px] leading-relaxed">
+                {f.desc}
+              </p>
+
+              {/* Icon */}
+              <div className="mt-auto pt-6 pb-2 text-stone-600">
+                <f.Icon size={18} strokeWidth={1.5} />
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
     </div>

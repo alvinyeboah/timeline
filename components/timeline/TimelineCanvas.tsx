@@ -2,7 +2,6 @@
 
 import { Goal, ProjectionPoint } from '@/lib/types';
 import { CURRENT_YEAR, PROJECTION_END_YEAR } from '@/lib/mock-data';
-import YearMarker from './YearMarker';
 import GoalNode from './GoalNode';
 import ProjectionChart from './ProjectionChart';
 
@@ -22,6 +21,10 @@ const YEARS = Array.from(
   (_, i) => CURRENT_YEAR + i
 );
 const TOTAL_WIDTH = YEARS.length * YEAR_WIDTH;
+
+// Bar top = label row (28px). Bar height = 8px. Goal nodes start at 36px.
+const LABEL_H = 28;
+const BAR_H = 8;
 
 export default function TimelineCanvas({
   goals,
@@ -43,32 +46,60 @@ export default function TimelineCanvas({
 
       {/* Horizontal scrollable strip */}
       <div
-        className="flex-1 overflow-x-auto overflow-y-hidden border-t border-stone-200 relative bg-white"
-        style={{ minHeight: 144 }}
+        className="flex-1 overflow-x-auto overflow-y-hidden border-t border-stone-100 relative bg-[#F5F4F0]"
+        style={{ minHeight: 190 }}
       >
         <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
         <div
           className="relative h-full hide-scrollbar"
-          style={{ width: TOTAL_WIDTH, minHeight: 144 }}
+          style={{ width: TOTAL_WIDTH, minHeight: 190 }}
         >
-          {/* Year markers */}
-          <div className="absolute bottom-0 left-0 right-0 flex border-t border-stone-200">
+          {/* Year label row */}
+          <div
+            className="absolute top-0 left-0 flex"
+            style={{ height: LABEL_H, width: TOTAL_WIDTH }}
+          >
             {YEARS.map((year) => (
               <div
                 key={year}
                 style={{ width: YEAR_WIDTH }}
-                className="flex justify-center pt-2 pb-3 shrink-0"
+                className="flex justify-center items-center shrink-0"
               >
-                <YearMarker year={year} isNow={year === CURRENT_YEAR} />
+                <span className={`text-[11px] tabular-nums font-medium ${
+                  year === CURRENT_YEAR ? 'text-[#00C896] font-bold' : 'text-stone-500'
+                }`}>
+                  {year}
+                </span>
               </div>
             ))}
           </div>
 
-          {/* Goal nodes */}
-          {goals.map((goal) => (
+          {/* Thick segmented bar */}
+          <div
+            className="absolute left-0 flex"
+            style={{ top: LABEL_H, height: BAR_H, width: TOTAL_WIDTH }}
+          >
+            {YEARS.map((year, i) => (
+              <div
+                key={year}
+                style={{ width: YEAR_WIDTH }}
+                className={`shrink-0 h-full ${
+                  year === CURRENT_YEAR
+                    ? 'bg-[#00C896]/60'
+                    : i % 2 === 0
+                    ? 'bg-stone-400'
+                    : 'bg-stone-300'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Goal nodes — anchored at bottom of bar */}
+          {goals.map((goal, index) => (
             <GoalNode
               key={goal.id}
               goal={goal}
+              index={index}
               xPosition={yearToX(goal.targetYear)}
               yearWidth={YEAR_WIDTH}
               minYear={CURRENT_YEAR + 1}
@@ -79,12 +110,6 @@ export default function TimelineCanvas({
               isActive={activeGoalId === goal.id}
             />
           ))}
-
-          {/* "Now" vertical line */}
-          <div
-            className="absolute top-0 bottom-8 w-px bg-[#00C896]/30"
-            style={{ left: yearToX(CURRENT_YEAR) }}
-          />
         </div>
       </div>
     </div>

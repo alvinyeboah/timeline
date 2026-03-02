@@ -6,6 +6,7 @@ import { GOAL_ICONS, XIcon } from '@/components/ui/icons';
 
 interface Props {
   goal: Goal;
+  index: number;
   xPosition: number;
   yearWidth: number;
   minYear: number;
@@ -16,17 +17,21 @@ interface Props {
   isActive: boolean;
 }
 
-const GOAL_ICON_COLORS: Record<Goal['type'], string> = {
-  real_estate: '#059669',   // emerald
-  education:   '#2563EB',   // blue
-  travel:      '#D97706',   // amber
-  retirement:  '#7C3AED',   // violet
-  career:      '#EA580C',   // orange
-  custom:      '#00C896',   // green
+const GOAL_COLORS: Record<Goal['type'], string> = {
+  real_estate: '#059669',
+  education:   '#2563EB',
+  travel:      '#D97706',
+  retirement:  '#7C3AED',
+  career:      '#EA580C',
+  custom:      '#00C896',
 };
+
+// Three stagger heights for visual rhythm, matching the reference
+const DASH_HEIGHTS = [18, 44, 28];
 
 export default function GoalNode({
   goal,
+  index,
   xPosition,
   yearWidth,
   minYear,
@@ -43,7 +48,9 @@ export default function GoalNode({
   };
 
   const GoalIcon = GOAL_ICONS[goal.type as keyof typeof GOAL_ICONS] ?? GOAL_ICONS.custom;
-  const iconColor = GOAL_ICON_COLORS[goal.type];
+  const color = GOAL_COLORS[goal.type];
+  const dashHeight = DASH_HEIGHTS[index % DASH_HEIGHTS.length];
+  const goalNum = String(index + 1).padStart(2, '0');
 
   return (
     <motion.div
@@ -54,60 +61,56 @@ export default function GoalNode({
       onDragEnd={handleDragEnd}
       onClick={() => onClick(goal)}
       whileDrag={{ scale: 1.06, zIndex: 50 }}
-      whileHover={{ scale: 1.03 }}
-      initial={{ opacity: 0, y: -10 }}
+      initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-      style={{ left: xPosition - 48, position: 'absolute', top: 8 }}
-      className="cursor-grab active:cursor-grabbing select-none touch-none z-10"
+      transition={{ type: 'spring', damping: 20, stiffness: 200, delay: index * 0.04 }}
+      style={{ left: xPosition - 24, position: 'absolute', top: 36 }}
+      className="cursor-grab active:cursor-grabbing select-none touch-none z-10 flex flex-col items-center"
     >
-      <div className="flex flex-col items-center relative">
+      {/* Dashed vertical line from bar down to circle */}
+      <div
+        style={{
+          width: 2,
+          height: dashHeight,
+          backgroundImage: `repeating-linear-gradient(to bottom, ${isActive ? color : '#C4B8B0'} 0, ${isActive ? color : '#C4B8B0'} 4px, transparent 4px, transparent 8px)`,
+        }}
+      />
+
+      {/* Circle with icon */}
+      <div className="relative">
         {/* Delete badge */}
         {isActive && (
           <motion.button
             initial={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
             onClick={(e) => { e.stopPropagation(); onDelete(goal.id); }}
-            className="absolute -top-1.5 -right-1.5 z-20 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-400 transition-colors shadow-md"
+            className="absolute -top-1 -right-1 z-20 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-400 transition-colors shadow-sm"
             aria-label="Delete goal"
           >
-            <XIcon size={10} strokeWidth={2.5} className="text-white" />
+            <XIcon size={9} strokeWidth={2.5} className="text-white" />
           </motion.button>
         )}
 
-        {/* Node card — 96px wide */}
-        <div
-          className={`w-24 px-2 py-3 rounded-2xl border text-center transition-all ${
-            isActive
-              ? 'bg-[#00C896]/5 border-[#00C896] shadow-md'
-              : 'bg-white border-stone-200 shadow-sm hover:shadow-md hover:border-stone-300'
-          }`}
+        <motion.div
+          animate={{ scale: isActive ? 1.1 : 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          className="rounded-full flex items-center justify-center shadow-sm"
+          style={{
+            width: 48,
+            height: 48,
+            backgroundColor: isActive ? color : color + 'D0',
+          }}
         >
-          {/* Icon */}
-          <div className="flex justify-center mb-1.5" style={{ color: iconColor }}>
-            <GoalIcon size={16} strokeWidth={1.5} />
-          </div>
+          <GoalIcon size={18} strokeWidth={1.5} color="white" />
+        </motion.div>
+      </div>
 
-          {/* Name */}
-          <p className="text-stone-700 text-[9px] font-semibold leading-tight line-clamp-2 tracking-wide uppercase">
-            {goal.name}
-          </p>
-
-          {/* Year pill */}
-          <div className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-medium mt-1.5 tabular-nums ${
-            isActive ? 'bg-[#00C896]/10 text-[#00C896]' : 'bg-stone-100 text-stone-500'
-          }`}>
-            {goal.targetYear}
-          </div>
-        </div>
-
-        {/* Connector */}
-        <div className={`w-px h-4 ${isActive ? 'bg-[#00C896]' : 'bg-stone-300'}`} />
-        <div
-          className={`w-2 h-2 rounded-full border-2 ${
-            isActive ? 'bg-[#00C896] border-[#00C896]' : 'bg-[#F5F4F0] border-stone-300'
-          }`}
-        />
+      {/* Goal number + name */}
+      <div className="mt-2 text-center" style={{ width: 72 }}>
+        <p className="text-[11px] font-bold text-stone-600 leading-none mb-0.5">{goalNum}</p>
+        <p className="text-[9px] font-semibold text-stone-500 uppercase tracking-wide leading-tight line-clamp-2">
+          {goal.name}
+        </p>
       </div>
     </motion.div>
   );
