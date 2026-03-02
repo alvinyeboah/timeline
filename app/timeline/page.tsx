@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 import { Goal, ProjectionPoint } from '@/lib/types';
 import { ACCOUNTS, SARAH, NET_WORTH } from '@/lib/mock-data';
 import { UserProfile } from '@/lib/types';
@@ -10,26 +9,43 @@ import { generateProjection } from '@/lib/projections';
 import { useGoalsStore } from '@/store/goals';
 import { useProfileStore } from '@/store/profile';
 import TimelineCanvas from '@/components/timeline/TimelineCanvas';
-import AIPanel from '@/components/ai/AIPanel';
-import NetWorthDisplay from '@/components/ui/NetWorthDisplay';
+import GoalDetailPanel from '@/components/goals/GoalDetailPanel';
+import AssumptionPanel from '@/components/goals/AssumptionPanel';
 import GoalInput from '@/components/ai/GoalInput';
 
-export default function TimelinePage() {
-  const router = useRouter();
+interface ComparisonData {
+  prevYear: number;
+  newYear: number;
+  text: string;
+}
 
+interface Sliders {
+  income: number;
+  growthRate: number;
+  incomeGrowth: number;
+}
+
+export default function TimelinePage() {
   const goals = useGoalsStore((s) => s.goals);
   const updateGoalYear = useGoalsStore((s) => s.updateGoalYear);
   const deleteGoal = useGoalsStore((s) => s.deleteGoal);
-
   const profile = useProfileStore((s) => s.profile);
 
   const [projection, setProjection] = useState<ProjectionPoint[]>([]);
+  const [hypotheticalProjection, setHypotheticalProjection] = useState<ProjectionPoint[]>([]);
   const [activeGoal, setActiveGoal] = useState<Goal | null>(null);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [viewMode, setViewMode] = useState<'reality' | 'possibility'>('reality');
+  const [sliders, setSliders] = useState<Sliders>({ income: 0, growthRate: 6, incomeGrowth: 2.5 });
+  const [comparison, setComparison] = useState<ComparisonData | null>(null);
+  const comparisonAbortRef = useRef<AbortController | null>(null);
 
-  // Recalculate projection whenever goals or profile changes
+  // Initialize slider income from profile
   useEffect(() => {
-    // Map StoredProfile → UserProfile shape for projection engine
+    setSliders((s) => ({ ...s, income: profile.income }));
+  }, [profile.income]);
+
+  // Recalculate base + adjusted projection
+  useEffect(() => {
     const projProfile: UserProfile = {
       ...SARAH,
       income: profile.income,
@@ -37,198 +53,213 @@ export default function TimelinePage() {
       totalDebt: profile.totalDebt,
       taxBracket: profile.taxBracket,
     };
-    setProjection(generateProjection(projProfile, ACCOUNTS, goals));
+    const pts = generateProjection(projProfile, ACCOUNTS, goals);
+    setProjection(pts);
   }, [goals, profile]);
 
-  // Show welcome screen on first visit
+  // Recalculate hypothetical projection (Possibility mode)
   useEffect(() => {
-    const seen = localStorage.getItem('timeline_welcome_seen');
-    if (!seen) setShowWelcome(true);
-  }, []);
+    if (viewMode !== 'possibility') return;
+    const projProfile: UserProfile = {
+      ...SARAH,
+      income: sliders.income,
+      monthlyExpenses: profile.monthlyExpenses,
+      totalDebt: profile.totalDebt,
+      taxBracket: profile.taxBracket,
+    };
+    const pts = generateProjection(projProfile, ACCOUNTS, goals, {
+      income: sliders.income,
+      growthRate: sliders.growthRate,
+      incomeGrowth: sliders.incomeGrowth,
+    });
+    setHypotheticalProjection(pts);
+  }, [viewMode, sliders, goals, profile]);
 
-  // Auto-select most recent goal when goals load
-  useEffect(() => {
-    if (goals.length > 0 && !activeGoal) {
-      setActiveGoal(goals[goals.length - 1]);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Merge hypothetical into projection points for chart
+  const chartData: ProjectionPoint[] = projection.map((pt, i) => ({
+    ...pt,
+    hypotheticalNetWorth: viewMode === 'possibility' ? hypotheticalProjection[i]?.hypotheticalNetWorth : undefined,
+  }));
 
-  const dismissWelcome = () => {
-    localStorage.setItem('timeline_welcome_seen', 'true');
-    setShowWelcome(false);
-  };
+  // Retirement gap (last projection point difference)
+  const retirementGap = viewMode === 'possibility' && hypotheticalProjection.length > 0
+    ? (hypotheticalProjection[hypotheticalProjection.length - 1]?.hypotheticalNetWorth ?? 0) -
+      (projection[projection.length - 1]?.adjustedNetWorth ?? 0)
+    : undefined;
 
   const handleGoalAdded = useCallback((goal: Goal) => {
     setActiveGoal(goal);
+    setComparison(null);
   }, []);
 
   const handleGoalDrop = useCallback(
     (id: string, newYear: number) => {
+      const goal = goals.find((g) => g.id === id);
+      if (!goal) return;
+      const prevYear = goal.targetYear;
       updateGoalYear(id, newYear);
-      setActiveGoal((prev) => (prev?.id === id ? { ...prev, targetYear: newYear } : prev));
+      setActiveGoal((prev) => (prev?.id === id ? { ...prev, targetYear: newYear, previousYear: prevYear } : prev));
+
+      // Stream comparison analysis
+      comparisonAbortRef.current?.abort();
+      const controller = new AbortController();
+      comparisonAbortRef.current = controller;
+
+      setComparison({ prevYear, newYear, text: '' });
+
+      fetch('/api/compare-impact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: { ...goal, targetYear: newYear }, prevYear, newYear, profile }),
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          if (!res.ok || !res.body) return;
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let text = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            text += decoder.decode(value, { stream: true });
+            setComparison((prev) => prev ? { ...prev, text } : null);
+          }
+        })
+        .catch(() => {/* silent */});
     },
-    [updateGoalYear]
+    [goals, updateGoalYear, profile]
   );
 
   const handleGoalClick = useCallback((goal: Goal) => {
-    setActiveGoal((prev) => (prev?.id === goal.id ? null : goal));
+    setActiveGoal((prev) => {
+      if (prev?.id === goal.id) return null;
+      setComparison(null);
+      return goal;
+    });
   }, []);
 
   const handleGoalDelete = useCallback(
     (id: string) => {
       deleteGoal(id);
       setActiveGoal((prev) => (prev?.id === id ? null : prev));
+      setComparison(null);
     },
     [deleteGoal]
   );
 
-  const handleClosePanel = useCallback(() => setActiveGoal(null), []);
+  const handleClosePanel = useCallback(() => {
+    setActiveGoal(null);
+    setComparison(null);
+  }, []);
 
   return (
-    <div className="h-screen bg-[#0D0D0D] flex flex-col overflow-hidden relative">
-      {/* Top bar */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between px-5 pt-12 pb-3 shrink-0 border-b border-[#1A1A1A]"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-[#00C896]/20 rounded-full flex items-center justify-center">
-            <span className="text-[#00C896] font-bold text-sm">SC</span>
+    <div className="h-screen bg-[#F5F4F0] flex flex-col overflow-hidden">
+      {/* ── Top Nav Bar ──────────────────────────────────────────────────────── */}
+      <div className="h-14 bg-white border-b border-stone-200 flex items-center px-5 gap-4 shrink-0">
+        {/* Left: Avatar + name + count */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 bg-[#00C896]/15 rounded-full flex items-center justify-center shrink-0">
+            <span className="text-[#00C896] font-bold text-xs">SC</span>
           </div>
-          <div>
-            <p className="text-white font-semibold text-sm">{SARAH.name.split(' ')[0]}</p>
-            <p className="text-[#9CA3AF] text-xs">
-              {goals.length} goal{goals.length !== 1 ? 's' : ''} on your timeline
+          <div className="min-w-0">
+            <span className="text-stone-900 font-semibold text-sm">Sarah Chen</span>
+            <span className="ml-2 text-[10px] font-medium text-stone-400 bg-stone-100 rounded-full px-2 py-0.5">
+              {goals.length} goal{goals.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Center: Goal input */}
+        <div className="flex-1 flex justify-center">
+          <GoalInput onGoalAdded={handleGoalAdded} />
+        </div>
+
+        {/* Right: Reality/Possibility toggle + net worth */}
+        <div className="flex items-center gap-4 shrink-0">
+          {/* Segmented pill toggle */}
+          <div className="flex bg-stone-100 rounded-xl p-0.5 gap-0.5">
+            {(['reality', 'possibility'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${
+                  viewMode === mode
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+
+          <div className="text-right">
+            <p className="text-stone-400 text-[10px] leading-none mb-0.5">Net Worth</p>
+            <p className="text-[#D97706] font-bold text-base tabular-nums leading-none">
+              ${NET_WORTH.toLocaleString('en-CA')}
             </p>
           </div>
         </div>
-
-        <div className="text-right">
-          <p className="text-[#9CA3AF] text-xs">Net Worth</p>
-          <NetWorthDisplay value={NET_WORTH} className="text-[#E8B84B] font-bold text-lg" />
-        </div>
-      </motion.div>
-
-      {/* Add goal bar */}
-      <div className="flex items-center justify-between px-5 py-3 shrink-0">
-        <p className="text-[#9CA3AF] text-xs uppercase tracking-widest">
-          {new Date().getFullYear()} → 2055
-        </p>
-        <GoalInput onGoalAdded={handleGoalAdded} />
       </div>
 
-      {/* Timeline canvas */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="flex-1 flex flex-col overflow-hidden relative"
-      >
-        <TimelineCanvas
-          goals={goals}
-          projection={projection}
-          onGoalDrop={handleGoalDrop}
-          onGoalClick={handleGoalClick}
-          onGoalDelete={handleGoalDelete}
-          activeGoalId={activeGoal?.id ?? null}
-        />
+      {/* ── Main Area ────────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left/center content */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          {/* Possibility assumption sliders */}
+          <AnimatePresence>
+            {viewMode === 'possibility' && (
+              <AssumptionPanel
+                profile={profile}
+                sliders={sliders}
+                onChange={setSliders}
+                retirementGap={retirementGap}
+              />
+            )}
+          </AnimatePresence>
 
-        {goals.length === 0 && (
+          {/* Timeline canvas (chart + strip) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-            style={{ top: '160px' }}
+            transition={{ delay: 0.1 }}
+            className="flex-1 flex flex-col overflow-hidden"
           >
-            <p className="text-[#4B5563] text-sm text-center px-8">
-              Add your first goal above — your timeline will appear here
-            </p>
-            <button
-              onClick={() => router.push('/what-matters')}
-              className="mt-3 px-5 py-2.5 bg-[#00C896] text-[#0D0D0D] font-semibold rounded-xl text-sm pointer-events-auto active:scale-[0.97] transition-all"
-            >
-              Add a goal →
-            </button>
+            <TimelineCanvas
+              goals={goals}
+              projection={chartData}
+              onGoalDrop={handleGoalDrop}
+              onGoalClick={handleGoalClick}
+              onGoalDelete={handleGoalDelete}
+              activeGoalId={activeGoal?.id ?? null}
+              showHypothetical={viewMode === 'possibility' && hypotheticalProjection.length > 0}
+            />
           </motion.div>
-        )}
-      </motion.div>
 
-      {/* AI Impact Panel */}
-      <AIPanel goal={activeGoal} onClose={handleClosePanel} />
-
-      {/* Welcome / Assumptions overlay */}
-      <AnimatePresence>
-        {showWelcome && (
-          <>
+          {/* Empty state */}
+          {goals.length === 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.96 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-              className="fixed inset-x-4 bottom-6 z-50 bg-[#1A1A1A] rounded-3xl border border-[#2A2A2A] p-6"
+              transition={{ delay: 0.5 }}
+              className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+              style={{ top: '200px' }}
             >
-              <WelcomeCard profile={profile} onDismiss={dismissWelcome} />
+              <p className="text-stone-400 text-sm text-center px-8">
+                Add your first goal above — your timeline will appear here
+              </p>
             </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+          )}
+        </div>
 
-function WelcomeCard({
-  profile,
-  onDismiss,
-}: {
-  profile: { fullName: string; income: number; province: string; monthlySavingsCapacity: number };
-  onDismiss: () => void;
-}) {
-  const firstName = profile.fullName.split(' ')[0];
-
-  return (
-    <>
-      <h2 className="text-2xl font-bold text-white mb-1">
-        Welcome to your life, {firstName}.
-      </h2>
-      <p className="text-[#9CA3AF] text-sm mb-5">
-        Here&apos;s what we&apos;re working with right now.
-      </p>
-
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        {[
-          { label: 'Annual income', value: `$${profile.income.toLocaleString('en-CA')}` },
-          { label: 'Monthly savings', value: `~$${profile.monthlySavingsCapacity.toLocaleString('en-CA')}` },
-          { label: 'Province', value: profile.province },
-          { label: 'Retirement target', value: 'Age 65' },
-          { label: 'Portfolio growth', value: '6% / year' },
-          { label: 'Income growth', value: '2.5% / year' },
-        ].map((item) => (
-          <div key={item.label} className="bg-[#242424] rounded-2xl p-3.5">
-            <p className="text-[#9CA3AF] text-xs mb-1">{item.label}</p>
-            <p className="text-white font-semibold text-sm">{item.value}</p>
-          </div>
-        ))}
+        {/* ── Right panel ────────────────────────────────────────────────────── */}
+        <GoalDetailPanel
+          goal={activeGoal}
+          onClose={handleClosePanel}
+          comparison={comparison}
+          onDismissComparison={() => setComparison(null)}
+        />
       </div>
-
-      <p className="text-[#4B5563] text-xs text-center mb-4">
-        Assumptions can be updated anytime from your profile.
-      </p>
-
-      <button
-        onClick={onDismiss}
-        className="w-full py-4 bg-[#00C896] text-[#0D0D0D] font-semibold rounded-2xl text-base active:scale-[0.98] transition-all"
-      >
-        Let&apos;s go →
-      </button>
-    </>
+    </div>
   );
 }

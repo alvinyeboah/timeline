@@ -19,6 +19,13 @@ export interface Account {
   connected: boolean;
 }
 
+export interface ChecklistItem {
+  id: string;
+  horizon: 'this_month' | 'next_quarter' | 'this_year' | 'target_year';
+  text: string;
+  done: boolean;
+}
+
 export interface Goal {
   id: string;
   name: string;
@@ -31,10 +38,14 @@ export interface Goal {
   priority?: 'higher' | 'same' | 'lower';
   aiAnalysis?: string;
   createdAt: string;
+  notes?: string;
+  checklist?: ChecklistItem[];
+  previousYear?: number;
 }
 
 export interface ProjectionPoint {
   year: number;
   baseNetWorth: number;
   adjustedNetWorth: number;
+  hypotheticalNetWorth?: number;
 }
