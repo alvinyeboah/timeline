@@ -154,55 +154,58 @@ export default function SplashPage() {
       </div>
 
       {/* ── Right: 4-column infographic ──────────────────────────────────────── */}
-      <div className="w-[45%] bg-[#EDECEA] flex flex-col justify-between py-12 px-4 overflow-hidden">
-        {/* Section label */}
+      <div className="w-[45%] bg-[#EDECEA] flex flex-col items-center justify-center py-12 px-4 overflow-hidden">
+        {/* Label + grid grouped so they center together */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-center mb-2"
+          className="w-full"
         >
-          <span className="text-stone-400 text-[10px] tracking-[0.3em] uppercase font-normal">How it </span>
-          <span className="text-stone-700 text-[10px] tracking-[0.3em] uppercase font-bold">works</span>
+          {/* Section label */}
+          <div className="text-center mb-4">
+            <span className="text-stone-400 text-[10px] tracking-[0.3em] uppercase font-normal">How it </span>
+            <span className="text-stone-700 text-[10px] tracking-[0.3em] uppercase font-bold">works</span>
+          </div>
+
+          {/* 4-column grid */}
+          <div className="grid grid-cols-4">
+            {FEATURES.map((f, i) => (
+              <motion.div
+                key={f.num}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + i * 0.09, duration: 0.5, ease: 'easeOut' }}
+                className="flex flex-col px-4 border-r border-stone-300/40 last:border-r-0"
+              >
+                {/* Giant centered number */}
+                <div className="h-28 flex items-center justify-center">
+                  <span
+                    className="font-bold select-none leading-none"
+                    style={{ fontSize: '96px', color: f.color }}
+                  >
+                    {f.num}
+                  </span>
+                </div>
+
+                {/* Bold title */}
+                <h3 className="text-[9px] font-bold text-stone-900 uppercase tracking-widest mt-3 mb-2">
+                  {f.title}
+                </h3>
+
+                {/* Description */}
+                <p className="text-stone-400 text-[10px] leading-relaxed">
+                  {f.desc}
+                </p>
+
+                {/* Icon */}
+                <div className="mt-6 pb-2 text-stone-600">
+                  <f.Icon size={18} strokeWidth={1.5} />
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </motion.div>
-
-        {/* 4-column grid */}
-        <div className="flex-1 grid grid-cols-4">
-          {FEATURES.map((f, i) => (
-            <motion.div
-              key={f.num}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 + i * 0.09, duration: 0.5, ease: 'easeOut' }}
-              className="flex flex-col px-4 border-r border-stone-300/40 last:border-r-0 pt-4"
-            >
-              {/* Giant centered number */}
-              <div className="h-28 flex items-center justify-center">
-                <span
-                  className="font-bold select-none leading-none"
-                  style={{ fontSize: '96px', color: f.color }}
-                >
-                  {f.num}
-                </span>
-              </div>
-
-              {/* Bold title */}
-              <h3 className="text-[9px] font-bold text-stone-900 uppercase tracking-widest mt-3 mb-2">
-                {f.title}
-              </h3>
-
-              {/* Description */}
-              <p className="text-stone-400 text-[10px] leading-relaxed">
-                {f.desc}
-              </p>
-
-              {/* Icon */}
-              <div className="mt-auto pt-6 pb-2 text-stone-600">
-                <f.Icon size={18} strokeWidth={1.5} />
-              </div>
-            </motion.div>
-          ))}
-        </div>
       </div>
     </div>
   );
