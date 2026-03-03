@@ -176,11 +176,11 @@ export default function SplashPage() {
               transition={{ delay: 0.3 + i * 0.09, duration: 0.5, ease: 'easeOut' }}
               className="flex flex-col px-4 border-r border-stone-300/40 last:border-r-0 pt-4"
             >
-              {/* Giant cropped number */}
-              <div className="h-28 overflow-hidden flex items-end">
+              {/* Giant centered number */}
+              <div className="h-28 flex items-center justify-center">
                 <span
                   className="font-bold select-none leading-none"
-                  style={{ fontSize: '148px', color: f.color }}
+                  style={{ fontSize: '96px', color: f.color }}
                 >
                   {f.num}
                 </span>

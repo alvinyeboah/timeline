@@ -8,6 +8,211 @@ import { useProfileStore } from '@/store/profile';
 import { GOAL_ICONS, XIcon, CompassIcon } from '@/components/ui/icons';
 import AdvisorModal from './AdvisorModal';
 
+// ── Action Plan Timeline Modal ──────────────────────────────────────────────
+
+const HORIZON_ORDER: ChecklistItem['horizon'][] = ['this_month', 'next_quarter', 'this_year', 'target_year'];
+const HORIZON_LABELS: Record<ChecklistItem['horizon'], string> = {
+  this_month: 'This Month',
+  next_quarter: 'Next 3 Months',
+  this_year: 'This Year',
+  target_year: 'By Target Year',
+};
+const HORIZON_COLORS: Record<ChecklistItem['horizon'], string> = {
+  this_month: '#00C896',
+  next_quarter: '#60A5FA',
+  this_year: '#F59E0B',
+  target_year: '#7C3AED',
+};
+const STEM_HEIGHTS: Record<ChecklistItem['horizon'], number> = {
+  this_month: 24,
+  next_quarter: 56,
+  this_year: 36,
+  target_year: 68,
+};
+
+function ActionPlanModal({
+  goal,
+  onClose,
+  onToggle,
+  onGenerate,
+  generating,
+  error,
+}: {
+  goal: Goal;
+  onClose: () => void;
+  onToggle: (itemId: string) => void;
+  onGenerate: () => void;
+  generating: boolean;
+  error: string;
+}) {
+  const checklist = goal.checklist ?? [];
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Dialog */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 12 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        className="relative bg-[#F5F4F0] rounded-3xl shadow-2xl w-full max-w-3xl mx-4 overflow-hidden"
+        style={{ maxHeight: '85vh' }}
+      >
+        {/* Header */}
+        <div className="px-8 py-6 bg-white border-b border-stone-200 flex items-center justify-between">
+          <div>
+            <p className="text-stone-400 text-xs uppercase tracking-widest mb-1">Action Plan</p>
+            <h2 className="text-xl font-bold text-stone-900">{goal.name}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full border border-stone-200 flex items-center justify-center text-stone-400 hover:text-stone-700 hover:border-stone-300 transition-colors"
+          >
+            <XIcon size={13} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 90px)' }}>
+          {checklist.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-8">
+              <p className="text-stone-500 text-sm mb-6 text-center">
+                Generate a step-by-step roadmap to reach this goal.
+              </p>
+              <button
+                onClick={onGenerate}
+                disabled={generating}
+                className="px-8 py-3 bg-stone-900 text-white rounded-xl text-sm font-semibold hover:bg-stone-800 disabled:opacity-50 transition"
+              >
+                {generating ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Generating roadmap…
+                  </span>
+                ) : 'Generate your roadmap →'}
+              </button>
+              {error && <p className="text-xs text-red-500 mt-3">{error}</p>}
+            </div>
+          ) : (
+            <div className="px-8 py-10 overflow-x-auto">
+              {/* Timeline container */}
+              <div className="relative" style={{ minWidth: 580 }}>
+
+                {/* Horizontal bar */}
+                <div className="flex" style={{ height: 10, marginLeft: 40, marginRight: 40 }}>
+                  {HORIZON_ORDER.map((h, i) => (
+                    <div
+                      key={h}
+                      className="flex-1 h-full"
+                      style={{
+                        backgroundColor: HORIZON_COLORS[h],
+                        opacity: 0.5,
+                        borderRadius: i === 0 ? '4px 0 0 4px' : i === 3 ? '0 4px 4px 0' : 0,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Nodes row — absolutely positioned over the bar */}
+                <div className="flex justify-around" style={{ marginTop: 0 }}>
+                  {HORIZON_ORDER.map((horizon) => {
+                    const items = checklist.filter((c) => c.horizon === horizon);
+                    const color = HORIZON_COLORS[horizon];
+                    const stemH = STEM_HEIGHTS[horizon];
+                    const doneCount = items.filter((c) => c.done).length;
+                    return (
+                      <div key={horizon} className="flex flex-col items-center flex-1">
+                        {/* Stem */}
+                        <div
+                          style={{
+                            width: 1.5,
+                            height: stemH,
+                            backgroundImage: `repeating-linear-gradient(to bottom, ${color} 0, ${color} 4px, transparent 4px, transparent 8px)`,
+                          }}
+                        />
+
+                        {/* Circle */}
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          className="rounded-full flex items-center justify-center shadow-md mb-4"
+                          style={{
+                            width: 52,
+                            height: 52,
+                            backgroundColor: color,
+                            boxShadow: `0 4px 16px ${color}44`,
+                          }}
+                        >
+                          {items.length > 0 ? (
+                            <span className="text-white font-bold text-sm">
+                              {doneCount}/{items.length}
+                            </span>
+                          ) : (
+                            <span className="text-white/60 text-xs">–</span>
+                          )}
+                        </motion.div>
+
+                        {/* Horizon label */}
+                        <p className="text-[11px] font-bold text-stone-700 mb-3 text-center leading-tight px-1">
+                          {HORIZON_LABELS[horizon]}
+                        </p>
+
+                        {/* Checklist items as cards */}
+                        {items.length > 0 && (
+                          <div className="w-full px-1 space-y-1.5">
+                            {items.map((item) => (
+                              <button
+                                key={item.id}
+                                onClick={() => onToggle(item.id)}
+                                className="w-full flex items-start gap-2 text-left bg-white rounded-xl px-3 py-2.5 border border-stone-200 hover:border-stone-300 hover:shadow-sm transition-all group"
+                              >
+                                <div
+                                  className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${item.done
+                                    ? 'border-transparent'
+                                    : 'border-stone-300 group-hover:border-stone-400'
+                                    }`}
+                                  style={item.done ? { backgroundColor: color, borderColor: color } : {}}
+                                >
+                                  {item.done && (
+                                    <svg width="7" height="6" viewBox="0 0 8 7" fill="none">
+                                      <path d="M1 3.5L3 5.5L7 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  )}
+                                </div>
+                                <span
+                                  className={`text-[11px] leading-snug ${item.done ? 'line-through text-stone-400' : 'text-stone-700'
+                                    }`}
+                                >
+                                  {item.text}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {items.length === 0 && (
+                          <p className="text-[10px] text-stone-400 text-center px-2">No steps yet</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -26,14 +231,7 @@ interface Props {
   onDismissComparison?: () => void;
 }
 
-const HORIZON_LABELS: Record<ChecklistItem['horizon'], string> = {
-  this_month: 'This Month',
-  next_quarter: 'Next 3 Months',
-  this_year: 'This Year',
-  target_year: 'By Target Year',
-};
 
-const HORIZON_ORDER: ChecklistItem['horizon'][] = ['this_month', 'next_quarter', 'this_year', 'target_year'];
 
 export default function GoalDetailPanel({ goal, onClose, comparison, onDismissComparison }: Props) {
   const allGoals = useGoalsStore((s) => s.goals);
@@ -44,7 +242,7 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
 
   const [streamedText, setStreamedText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [checklistOpen, setChecklistOpen] = useState(false);
+  const [showActionPlan, setShowActionPlan] = useState(false);
   const [generatingChecklist, setGeneratingChecklist] = useState(false);
   const [checklistError, setChecklistError] = useState('');
   const [showAdvisor, setShowAdvisor] = useState(false);
@@ -236,7 +434,7 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
   };
   const iconColor = goalIconColors[goal.type];
 
-  const checklist = goal.checklist ?? [];
+
 
   return (
     <>
@@ -352,87 +550,24 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
             )}
           </div>
 
-          {/* ④ Checklist */}
+          {/* ④ Action Plan — opens timeline modal */}
           <div className="px-4 mb-4">
             <button
-              onClick={() => setChecklistOpen((o) => !o)}
-              className="w-full flex items-center justify-between py-2 text-sm font-semibold text-stone-700 hover:text-stone-900 transition-colors"
+              onClick={() => setShowActionPlan(true)}
+              className="w-full flex items-center justify-between py-2.5 px-4 bg-stone-50 border border-stone-200 rounded-xl text-sm font-semibold text-stone-700 hover:bg-stone-100 hover:text-stone-900 transition-colors"
             >
               <span>Action Plan</span>
-              <svg
-                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
-                className={`transition-transform ${checklistOpen ? 'rotate-180' : ''} text-stone-400`}
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              <div className="flex items-center gap-2">
+                {(goal.checklist ?? []).length > 0 && (
+                  <span className="text-[10px] font-medium bg-stone-200 text-stone-500 rounded-full px-2 py-0.5">
+                    {(goal.checklist ?? []).filter((c) => c.done).length}/{(goal.checklist ?? []).length}
+                  </span>
+                )}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="text-stone-400">
+                  <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                </svg>
+              </div>
             </button>
-
-            <AnimatePresence>
-              {checklistOpen && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  {checklist.length === 0 ? (
-                    <div className="mt-2 flex flex-col gap-2">
-                      <button
-                        onClick={handleGenerateChecklist}
-                        disabled={generatingChecklist}
-                        className="w-full py-2.5 border border-stone-200 rounded-xl text-sm text-[#00C896] font-medium hover:bg-stone-50 transition disabled:opacity-50"
-                      >
-                        {generatingChecklist ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <span className="w-3 h-3 border-2 border-[#00C896]/30 border-t-[#00C896] rounded-full animate-spin" />
-                            Generating roadmap…
-                          </span>
-                        ) : (
-                          'Generate your roadmap →'
-                        )}
-                      </button>
-                      {checklistError && (
-                        <p className="text-xs text-red-500 text-center">{checklistError}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-2 space-y-4">
-                      {HORIZON_ORDER.map((horizon) => {
-                        const items = checklist.filter((i) => i.horizon === horizon);
-                        if (items.length === 0) return null;
-                        const targetLabel = horizon === 'target_year' ? `By ${goal.targetYear}` : HORIZON_LABELS[horizon];
-                        return (
-                          <div key={horizon}>
-                            <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-2">{targetLabel}</p>
-                            <div className="space-y-1.5">
-                              {items.map((item) => (
-                                <button
-                                  key={item.id}
-                                  onClick={() => toggleChecklistItem(goal.id, item.id)}
-                                  className="w-full flex items-start gap-2.5 text-left group"
-                                >
-                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${item.done ? 'bg-[#00C896] border-[#00C896]' : 'border-stone-300 group-hover:border-stone-400'}`}>
-                                    {item.done && (
-                                      <svg width="8" height="7" viewBox="0 0 8 7" fill="none">
-                                        <path d="M1 3.5L3 5.5L7 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <span className={`text-sm leading-snug ${item.done ? 'line-through text-stone-400' : 'text-stone-700 group-hover:text-stone-900'}`}>
-                                    {item.text}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
 
           {/* ⑤ Chat */}
@@ -452,11 +587,10 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
                   {chatMessages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div
-                        className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-snug ${
-                          msg.role === 'user'
-                            ? 'bg-stone-900 text-white rounded-br-sm'
-                            : 'bg-stone-100 text-stone-700 rounded-bl-sm'
-                        }`}
+                        className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-snug ${msg.role === 'user'
+                          ? 'bg-stone-900 text-white rounded-br-sm'
+                          : 'bg-stone-100 text-stone-700 rounded-bl-sm'
+                          }`}
                       >
                         {msg.content}
                         {msg.role === 'assistant' && chatStreaming && i === chatMessages.length - 1 && !msg.content && (
@@ -540,6 +674,19 @@ export default function GoalDetailPanel({ goal, onClose, comparison, onDismissCo
           onClose={() => setShowAdvisor(false)}
         />
       )}
+
+      <AnimatePresence>
+        {showActionPlan && (
+          <ActionPlanModal
+            goal={goal}
+            onClose={() => setShowActionPlan(false)}
+            onToggle={(itemId) => toggleChecklistItem(goal.id, itemId)}
+            onGenerate={handleGenerateChecklist}
+            generating={generatingChecklist}
+            error={checklistError}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
